@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>StoneFlow Surfaces</title>
+<meta name="description" content="Quartz, granite and calacatta slabs in stock for fabricators.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/site.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#home"><b id="brandName">StoneFlow Surfaces</b><span>Slab yard</span></a>
+    <nav class="nav" aria-label="Main">
+      <a href="#collections" class="hide-sm">Slabs</a>
+      <a href="#process" class="hide-sm">How it works</a>
+      <a href="#visit">Visit</a>
+      <a class="btn primary" href="#staff" id="staffLink">Staff portal</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ============ PUBLIC SITE ============ -->
+<main id="home-view">
+  <div class="wrap">
+    <section class="hero">
+      <div>
+        <span class="eyebrow">Quartz · Granite · Calacatta · Onyx</span>
+        <h1>Slabs in the yard, <em>ready to cut.</em></h1>
+        <p>Jumbo and regular quartz, granite and onyx for countertop fabricators. Pick your lot, we hold it, you pick it up.</p>
+        <div class="ctas"><a class="btn primary" href="#collections">See what's in stock</a><a class="btn" href="#visit">Book a yard visit</a></div>
+      </div>
+      <div class="slab" aria-hidden="true"><canvas id="heroSlab" width="1016" height="512"></canvas><span class="tag">Calacatta · 127 × 64 in · Bookmatched</span></div>
+    </section>
+    <div class="facts">
+      <div><b>300+</b><span>lots on racks</span></div>
+      <div><b>14</b><span>collections</span></div>
+      <div><b>138 × 79</b><span>largest jumbo, inches</span></div>
+      <div><b>Same day</b><span>holds for fabricators</span></div>
+    </div>
+
+    <section class="block" id="collections">
+      <div class="block-h"><h2>Collections</h2><p>Every lot is a batch of matched slabs from one block. Ask for the lot number when you order so your kitchen matches.</p></div>
+      <div class="coll" id="collGrid"></div>
+    </section>
+
+    <section class="block" id="process">
+      <div class="block-h"><h2>How it works</h2><p>Our sales team checks the live inventory before every quote, so the slab you pick is the slab you get.</p></div>
+      <div class="steps">
+        <div><h3>Pick a lot</h3><p>Browse the racks or send us the color and size. We confirm how many slabs of that lot are free.</p></div>
+        <div><h3>We hold it</h3><p>Your salesperson puts the slabs on hold under your name while you confirm the job.</p></div>
+        <div><h3>Pick up</h3><p>Bring your truck and A-frame. We load the held slabs and mark them sold the same minute.</p></div>
+      </div>
+    </section>
+
+    <section class="block" id="visit">
+      <div class="block-h"><h2>Visit the yard</h2></div>
+      <div class="visit">
+        <dl>
+          <dt>Hours</dt><dd>Mon–Fri 7:30–4:30 · Sat 8:00–12:00</dd>
+          <dt>Address</dt><dd>Sample address, replace in index.html</dd>
+          <dt>Phone</dt><dd>(000) 000-0000</dd>
+          <dt>Pick-up</dt><dd>Bring an A-frame; forklift loading at dock 2</dd>
+        </dl>
+        <form class="contact" id="contactForm" name="contact" method="POST" data-netlify="true" netlify-honeypot="company_url">
+          <input type="hidden" name="form-name" value="contact">
+          <p hidden><label>Leave empty <input name="company_url"></label></p>
+          <div class="two">
+            <div class="field"><label for="cName">Name</label><input id="cName" name="name" required autocomplete="name"></div>
+            <div class="field"><label for="cPhone">Phone</label><input id="cPhone" name="phone" autocomplete="tel"></div>
+          </div>
+          <div class="field"><label for="cColor">Color or lot # you're after</label><input id="cColor" name="color" placeholder="e.g. Zircon 127 × 64, or IQ466"></div>
+          <div class="field"><label for="cMsg">Message</label><textarea id="cMsg" name="message" rows="3"></textarea></div>
+          <div><button class="btn primary" type="submit">Send request</button> <span class="eyebrow" id="cStatus"></span></div>
+        </form>
+      </div>
+    </section>
+  </div>
+</main>
+
+<!-- ============ STAFF PORTAL ============ -->
+<main id="staff-view" hidden>
+  <div class="wrap portal">
+    <div class="p-head">
+      <div><span class="eyebrow" id="pSource">Live inventory · OneDrive</span><h1>Staff portal</h1></div>
+      <div class="p-actions" id="pActions" hidden>
+        <select id="sheetSel" aria-label="Month sheet"></select>
+        <button class="btn" type="button" id="refreshBtn">Refresh</button>
+        <a class="btn" id="openExcel" target="_blank" rel="noopener" hidden>Open in Excel</a>
+        <button class="btn" type="button" id="demoDownload" hidden>Download changed file</button>
+        <span class="eyebrow" id="whoami"></span>
+        <button class="btn" type="button" id="signOut" hidden>Sign out</button>
+      </div>
+    </div>
+
+    <div class="gate" id="gate" hidden></div>
+    <div class="notice" id="note" hidden></div>
+
+    <div id="desk-wrap" hidden>
+      <section class="stats" aria-label="Stock summary">
+        <div class="stat"><span class="v ok" id="stFree">–</span><span class="l">Slabs free to sell</span></div>
+        <div class="stat"><span class="v" id="stHold">–</span><span class="l">Slabs on hold</span></div>
+        <div class="stat"><span class="v" id="stStock">–</span><span class="l">Slabs in stock</span></div>
+        <div class="stat"><span class="v" id="stLots">–</span><span class="l">Lots in stock</span></div>
+        <div class="stat"><span class="v small" id="stSync">–</span><span class="l">Read from Excel</span></div>
+      </section>
+      <div class="tabs" role="tablist" style="margin-top:16px">
+        <button type="button" role="tab" id="tabAgent" aria-selected="true">Agent</button>
+        <button type="button" role="tab" id="tabInv" aria-selected="false">Inventory</button>
+      </div>
+      <div class="desk" id="desk" data-tab="agent" style="margin-top:16px">
+        <section class="panel chat" aria-label="Inventory agent">
+          <div class="panel-h"><h2>Inventory agent</h2><button class="btn" id="clearChat" type="button">New chat</button></div>
+          <div class="msgs" id="msgs"></div>
+          <form class="composer" id="composer">
+            <input id="ask" autocomplete="off" placeholder="e.g. Is IQ466 available?" aria-label="Message the inventory agent">
+            <button class="btn primary" id="sendBtn" type="submit">Send</button>
+          </form>
+        </section>
+        <div class="col inv">
+          <section class="panel" aria-label="Lots">
+            <div class="panel-h"><h2>Lots</h2><span class="eyebrow" id="invCount"></span></div>
+            <div class="inv-tools">
+              <input id="search" type="search" placeholder="Lot #, color, size, rack…" aria-label="Search lots">
+              <select id="secSel" aria-label="Section"><option value="">All sections</option></select>
+              <div class="seg" role="group" aria-label="Stock filter">
+                <button type="button" data-f="in" aria-pressed="true">In stock</button>
+                <button type="button" data-f="all" aria-pressed="false">All</button>
+                <button type="button" data-f="out" aria-pressed="false">Out</button>
+              </div>
+            </div>
+            <div id="lotCard" hidden></div>
+            <div class="tablebox" id="tablebox"></div>
+            <div class="foot">Tap a lot to record a sale or change holds. Every change is written straight into the Excel file.</div>
+          </section>
+          <section class="panel" aria-label="Sales orders">
+            <div class="panel-h"><h2>Sales orders</h2><span class="eyebrow" id="ordersWhere"></span></div>
+            <div class="log" id="orders"></div>
+          </section>
+          <section class="panel" aria-label="Recent changes">
+            <div class="panel-h"><h2>Recent changes</h2><span class="eyebrow" id="logWhere"></span></div>
+            <div class="log" id="log"></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer><div class="wrap"><span id="footName">StoneFlow Surfaces</span><span>Demo site · inventory runs from the yard's Excel file on OneDrive</span></div></footer>
+<div class="busy" id="busy" hidden></div>
+
+<script src="js/config.js"></script>
+<script src="js/stonesheet.js"></script>
+<script src="js/xlsxlite.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/stores.js"></script>
+<script src="js/home.js"></script>
+<script src="js/portal.js"></script>
+</body>
+</html>

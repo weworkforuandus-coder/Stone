@@ -1,0 +1,11 @@
+[build]
+  publish = "site"
+  functions = "netlify/functions"
+
+# Security headers: no other site may frame this one; scripts only from this site.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://*.sharepoint.com https://*.svc.ms https://*.files.1drv.com https://*.livefilestore.com https://*.1drv.com https://*.microsoftpersonalcontent.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://login.microsoftonline.com"
