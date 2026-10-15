@@ -25,7 +25,9 @@
       if (r.status === 401) throw err("Your Microsoft sign-in expired. Sign in again.", { code: "auth" });
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
-        throw err(d?.error?.message || `OneDrive error ${r.status}`, { status: r.status, code: d?.error?.code });
+        let msg = String(d?.error?.message || "");
+        if (!msg || /^\s*</.test(msg)) msg = `OneDrive refused the request (error ${r.status}).`;   // never show raw HTML
+        throw err(msg, { status: r.status, code: d?.error?.code });
       }
       if (opt.raw) return r;
       return r.status === 204 ? null : r.json();
@@ -33,13 +35,31 @@
   }
 
   async function locate(g, cfg) {
-    let item;
-    if (cfg.shareUrl) {
-      const enc = "u!" + btoa(unescape(encodeURIComponent(cfg.shareUrl))).replace(/=+$/, "").replace(/\//g, "_").replace(/\+/g, "-");
-      item = await g(`/shares/${enc}/driveItem`);
-    } else if (cfg.filePath) {
-      item = await g(`/me/drive/root:${encodeURI(cfg.filePath)}`);
-    } else throw err("Set shareUrl or filePath in js/config.js.");
+    let item = null, shareErr = null, pathErr = null;
+    const url = String(cfg.shareUrl || "").trim(), path = String(cfg.filePath || "").trim();
+    if (url) {
+      // A browser address like onedrive.live.com/edit?...resid=ABC!123 can be opened by its item id.
+      const resid = /[?&](?:resid|id)=([0-9A-Fa-f]+(?:!|%21)[0-9A-Za-z]+)/.exec(url);
+      try {
+        if (resid) { const id = decodeURIComponent(resid[1]); item = await g(`/drives/${id.split("!")[0]}/items/${encodeURIComponent(id)}`); }
+        else {
+          const enc = "u!" + btoa(unescape(encodeURIComponent(url))).replace(/=+$/, "").replace(/\//g, "_").replace(/\+/g, "-");
+          item = await g(`/shares/${enc}/driveItem`);
+        }
+      } catch (e) { if (e.code === "auth") throw e; shareErr = e; }
+    }
+    if (!item && path) {
+      try { item = await g(`/me/drive/root:${encodeURI(path.startsWith("/") ? path : "/" + path)}`); }
+      catch (e) { if (e.code === "auth") throw e; pathErr = e; }
+    }
+    if (!item) {
+      if (!url && !path) throw err("Set shareUrl or filePath in js/config.js.");
+      const tips = [];
+      if (url) tips.push(/1drv\.ms|sharepoint\.com|\/:x:\//i.test(url) ? "The sharing link didn't open. Check it is a \"Can edit\" link shared with the account you signed in with."
+        : "The link in shareUrl isn't a sharing link. In OneDrive, right-click the file, choose Share, then Copy link, and paste that link (it starts with https://1drv.ms/).");
+      if (path) tips.push(`The file wasn't found at filePath "${path}" in your OneDrive (it must be the path inside OneDrive, e.g. /Documents/App/LIVE_INVENTORY.xlsx).`);
+      throw err(tips.join(" "), { status: (shareErr || pathErr)?.status });
+    }
     return { driveId: item.parentReference.driveId, itemId: item.id, parentId: item.parentReference.id,
       driveType: item.parentReference.driveType, name: item.name, webUrl: item.webUrl };
   }
