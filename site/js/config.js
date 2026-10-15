@@ -8,7 +8,7 @@ window.STONEFLOW_CONFIG = {
   // Azure app registration (README step 2). Leave clientId empty to run the portal in demo mode.
   microsoft: {
     clientId: "68948113-4da7-4aac-86f1-eb2ae369e9aa",                 // "Application (client) ID" from Azure
-    tenant: "60025a4f-7cc3-4607-aa4b-a762755d2f11",             // "common" = work and personal Microsoft accounts
+    tenant: "common",             // "common" = work and personal Microsoft accounts
   },
 
   // Where LIVE_INVENTORY.xlsx lives (README step 3). Use ONE of these:
