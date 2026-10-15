@@ -1,6 +1,6 @@
 /* StoneFlow Surfaces: dummy company site + staff inventory portal.
    Layout: public pages are a single scrolling site (hero slab, collections, process, visit);
-   the staff portal is a working desk (stats, agent chat beside the live lot ledger). */
+   the Live Inventory is a working desk (stats, agent chat beside the live lot ledger). */
 :root {
   --bg: #EEF0EE; --surface: #F9FAF8; --sunk: #E2E6E2; --ink: #1C2220; --muted: #5C6661; --line: #D0D6D1;
   --accent: #2D4C7C; --accent-ink: #FFFFFF; --accent-soft: #DCE4F1; --vein: #B39A6B;
@@ -91,7 +91,7 @@ form.contact .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1f
 footer { border-top: 1px solid var(--line); padding-block: 24px 40px; color: var(--muted); font-size: 13px; }
 footer .wrap { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 
-/* ---------- staff portal ---------- */
+/* ---------- Live Inventory ---------- */
 .portal { padding-block: 20px 40px; display: grid; gap: 16px; }
 .p-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px; }
 .p-head h1 { font-size: clamp(30px, 5vw, 44px); line-height: .95; }
