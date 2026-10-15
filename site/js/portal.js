@@ -45,6 +45,7 @@
         S.store = await window.InventoryStores.connect(CFG.excel || {}, S.auth.getToken);
         const me = await window.InventoryStores.graph(S.auth.getToken)("/me?$select=displayName,mail,userPrincipalName");
         S.who = me.displayName || me.mail || me.userPrincipalName || "";
+        S.email = String(me.mail || me.userPrincipalName || "").toLowerCase();
       } catch (e) { busy(false); return showGate(e.code === "auth" ? "signin" : "error", e.message); }
       busy(false);
       return start();
@@ -107,6 +108,10 @@
   /* ---------- rendering ---------- */
   function renderNote() {
     const m = S.meta; if (!m) return note("");
+    // Sheet notes are only for the people listed in adminEmails (config.js); everyone else sees no notice.
+    const admins = (CFG.adminEmails || []).map((x) => String(x).trim().toLowerCase()).filter(Boolean);
+    const isAdmin = S.mode === "demo" || (S.email && admins.includes(S.email));
+    if (!isAdmin) return note("");
     const w = m.warnings || [];
     const src = S.mode === "demo"
       ? `<span><strong>Demo copy</strong> of ${esc(m.name.replace(/ \(demo copy\)$/, ""))}, sheet ${esc(m.sheet)}. Changes stay in this browser; use <strong>Download changed file</strong> to see them in Excel.</span>`
@@ -376,6 +381,7 @@ When told slabs were sold: identify the ONE lot (by lot #, or color plus size). 
 Returns or cancelled sales: record_sale with type "return".
 Holds: "hold 5 IQ1466J for Puru" → set_hold with that person's name and the NEW total for that person (0 to release).
 Sales orders: when the user is selling to a client ("create a sales order for ABC Granite: 3 IQ466 and 2 IQ1466J at $450 a slab"), call find_lots for each item, then call create_sales_order ONCE with the client name and every line (lot id, slabs, price per slab if given). Ask only for what is missing: the client name, the quantity, or which lot when several match. It checks stock for every line first; if a line is short nothing is recorded, so tell the user what is free instead. After creating, reply with the order number, client, each line (lot #, color, size, slabs, price) and total slabs, sq ft and amount. To cancel an order use cancel_sales_order. Use record_sale only for a quick sale with no client order. Use find_orders for questions about past orders.
+Language: staff may write or speak in English or Spanish (spoken messages can have small transcription mistakes, e.g. "I Q 466" means IQ466, "for sixty six" may mean 466). Always reply in the language of the user's latest message. Keep lot numbers, color names and sizes exactly as in the inventory.
 Reply briefly for staff on a phone: short lines, "•" for list items, **bold** only for the key number. No tables or headings. Never invent lots, sizes or counts.`;
   }
   const TOOL_DEFS = [
@@ -514,8 +520,56 @@ Reply briefly for staff on a phone: short lines, "•" for list items, **bold** 
     catch (e) {
       if (e?.code === "cancelled" || e?.name === "AbortError") reply.text = (reply.text ? reply.text + "\n" : "") + "(stopped)";
       else { const m = ERR[e?.code] || e?.message || "The agent was interrupted. Send again."; reply.text = e?.text ? e.text + "\n\n" + m : (reply.text ? reply.text + "\n\n" + m : m); reply.err = !e?.text && !reply.acts.length; }
-    } finally { reply.thinking = false; S.busy = false; $("sendBtn").textContent = "Send"; renderMsgs(); }
+    } finally { reply.thinking = false; S.busy = false; $("sendBtn").textContent = "Send"; renderMsgs(); if (!reply.err) Voice.say(reply.text); }
   }
+
+  /* ---------- voice: speak to the agent (English / Spanish) and optional read-aloud ---------- */
+  const Voice = (() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const LANGS = { en: { code: "en-US", label: "EN", ph: "e.g. Is IQ466 available?" }, es: { code: "es-US", label: "ES", ph: "p. ej. ¿Hay IQ466 disponible?" } };
+    const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch { return null; } };
+    let lang = store("sf_voice_lang") === "es" ? "es" : "en", speak = store("sf_voice_speak") === "1", rec = null, base = "";
+    const mic = $("micBtn"), spk = $("spkBtn"), lb = $("langBtn"), ask = $("ask");
+    function paint() {
+      lb.textContent = LANGS[lang].label; lb.title = lang === "en" ? "Voice language: English (tap for Español)" : "Idioma de voz: Español (toca para English)";
+      ask.placeholder = LANGS[lang].ph; spk.setAttribute("aria-pressed", String(speak));
+      mic.setAttribute("aria-pressed", String(!!rec)); mic.title = rec ? (lang === "es" ? "Escuchando… toca para parar" : "Listening… tap to stop") : (lang === "es" ? "Habla con el agente" : "Speak to the agent");
+    }
+    function stop() { try { rec?.stop(); } catch {} }
+    function start() {
+      if (rec) return stop();
+      window.speechSynthesis?.cancel();
+      const r = new SR(); rec = r; base = ask.value ? ask.value.trim() + " " : "";
+      r.lang = LANGS[lang].code; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+      let finalText = "";
+      r.onresult = (e) => {
+        let interim = ""; finalText = "";
+        for (const res of e.results) (res.isFinal ? (finalText += res[0].transcript) : (interim += res[0].transcript));
+        ask.value = base + (finalText || interim);
+      };
+      r.onerror = (e) => {
+        const m = { "not-allowed": "Microphone blocked. Allow the microphone for this site (lock icon in the address bar).", "service-not-allowed": "Microphone blocked. Allow the microphone for this site (lock icon in the address bar).",
+          "no-speech": lang === "es" ? "No te escuché. Toca el micrófono e intenta de nuevo." : "Didn't hear anything. Tap the mic and try again.", "audio-capture": "No microphone found.", network: "Voice needs an internet connection." }[e.error];
+        if (m) flash(m);
+      };
+      r.onend = () => { rec = null; paint(); const t = ask.value.trim(); if (finalText.trim() && t && !S.busy) send(t); else ask.focus(); };
+      try { r.start(); } catch { rec = null; }
+      paint();
+    }
+    function say(text) {
+      if (!speak || !text || !window.speechSynthesis) return;
+      const plain = String(text).replace(/\*\*/g, "").replace(/•/g, ",").replace(/\s+x\s+/gi, " by ").replace(/\n+/g, ". ");
+      const u = new SpeechSynthesisUtterance(plain);
+      u.lang = /[¿¡ñáéíóú]|\b(hay|disponible|losas|sí|está|tenemos)\b/i.test(plain) ? "es-US" : "en-US";
+      speechSynthesis.cancel(); speechSynthesis.speak(u);
+    }
+    lb.onclick = () => { lang = lang === "en" ? "es" : "en"; store("sf_voice_lang", lang); if (rec) { stop(); } paint(); };
+    spk.onclick = () => { speak = !speak; store("sf_voice_speak", speak ? "1" : "0"); if (!speak) window.speechSynthesis?.cancel(); paint(); };
+    if (SR) { mic.hidden = false; mic.onclick = start; } else { lb.title = "Voice typing isn't supported in this browser. Use Chrome, Edge or Safari."; }
+    if (window.speechSynthesis) spk.hidden = false;
+    paint();
+    return { say };
+  })();
 
   /* ---------- events ---------- */
   $("composer").onsubmit = (e) => { e.preventDefault(); if (S.busy) { S.ctl?.abort(); return; } send($("ask").value); };
