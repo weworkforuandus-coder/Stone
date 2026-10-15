@@ -62,7 +62,7 @@
   function route() {
     const staff = location.hash === "#staff";
     $("home-view").hidden = staff; $("staff-view").hidden = !staff;
-    $("staffLink").textContent = staff ? "Back to site" : "Staff portal";
+    $("staffLink").textContent = staff ? "Back to site" : "Live Inventory";
     $("staffLink").setAttribute("href", staff ? "#home" : "#staff");
     if (staff) { window.Portal?.open(); window.scrollTo(0, 0); }
     else if (location.hash && location.hash !== "#home") document.querySelector(location.hash)?.scrollIntoView();
