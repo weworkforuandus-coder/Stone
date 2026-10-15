@@ -1,5 +1,34 @@
 # StoneFlow Surfaces: website + OneDrive inventory agent
 
+## Who can do what
+
+| Person | Sign-in | Can |
+|---|---|---|
+| Anyone (customers, public) | none | See live stock (lot #, color, size, stock, on hold, free) and ask the agent "is IQ466 available?" in English or Spanish. No rack locations, no names of who holds slabs, no sales orders. |
+| Signed in, not on the staff list | Microsoft | Same as anyone (read-only). |
+| Staff (owner + `ALLOWED_EMAILS`) | Microsoft | Everything: sales, holds, sales orders (PDF), undo, sales log. |
+
+The site's server opens the Excel file with the **owner's** OneDrive connection (connected once at `/api/connect`).
+Staff don't need the Excel file shared with them, and nobody's browser ever gets the owner's access.
+
+### Netlify environment variables
+
+| Variable | Value |
+|---|---|
+| `MS_CLIENT_ID` | Azure Application (client) ID |
+| `MS_CLIENT_SECRET` | Azure client secret **Value** (mark as secret) |
+| `OWNER_EMAIL` | the Microsoft account that owns the Excel file |
+| `EXCEL_PATH` | path inside the owner's OneDrive, e.g. `/Stone/LIVE INVENTORY.xlsx` |
+| `ALLOWED_EMAILS` | staff who may change the inventory, comma-separated |
+| `ANTHROPIC_API_KEY` | Claude API key (mark as secret) |
+| `PUBLIC_AGENT` | optional: `off` hides the agent from visitors |
+
+Azure: keep the Single-page application redirect `https://YOUR-SITE.netlify.app/`, and add a **Web** platform redirect
+`https://YOUR-SITE.netlify.app/api/connect` plus a client secret. After deploying, the owner opens
+`https://YOUR-SITE.netlify.app/api/connect` once and signs in.
+
+Older setup notes below describe the first version, where each person opened the file with their own OneDrive access.
+
 A company website with a **Staff portal** that works directly on your **LIVE_INVENTORY.xlsx in OneDrive**. Nothing gets copied into a separate database.
 
 - Staff sign in with their Microsoft account.

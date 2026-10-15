@@ -3,6 +3,9 @@
   publish = "site"
   functions = "netlify/functions"
 
+[functions]
+  node_bundler = "esbuild"
+
 # Security headers: no other site may frame this one; scripts only from this site.
 [[headers]]
   for = "/*"

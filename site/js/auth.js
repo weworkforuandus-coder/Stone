@@ -5,7 +5,7 @@
  */
 (function (root) {
   const KEY = "sf_ms_tokens", TMP = "sf_ms_pkce";
-  const SCOPES = "openid profile offline_access User.Read Files.ReadWrite.All";
+  const SCOPES = "openid profile offline_access User.Read";   // sign-in only: the file is reached through the site's server
   const b64url = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   const store = {
     get(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } },

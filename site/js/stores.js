@@ -370,7 +370,76 @@
     const useWorkbook = cfg.mode === "workbook" || (cfg.mode !== "file" && business);
     return useWorkbook ? WorkbookStore(g, loc, drive, cfg) : FileStore(drive, cfg);
   }
+  /* ---------------- the site's own server (owner's OneDrive connection kept on the server) ---------------- */
+  // Editors: same FileStore as before, but the file travels through /api/file, so staff don't need OneDrive access.
+  function api(getToken) {
+    return async function call(path, opt = {}) {
+      const token = getToken ? await getToken() : null;
+      const r = await fetch(path, { ...opt, headers: { ...(token ? { authorization: "Bearer " + token } : {}), ...(opt.headers || {}) } });
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw err(d.error || `Server error ${r.status}`, { status: r.status, code: r.status === 401 ? "auth" : d.code });
+      }
+      return r;
+    };
+  }
+  function serverCsv(call, which, label, cols) {
+    let eTag = null, text = null, ok = true, lastError = "";
+    async function read() {
+      if (!ok) return [];
+      try { const r = await call(`/api/file?op=csv&name=${which}`); eTag = r.headers.get("x-etag"); text = await r.text(); }
+      catch (e) { if (e.status === 404) { eTag = null; text = ""; } else { ok = false; lastError = e.message; return []; } }
+      return parseCsv(cols, text);
+    }
+    async function append(rows) {
+      if (!ok) return false;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (text == null) await read();
+        if (!ok) return false;
+        const head = text ? "" : "\uFEFF" + cols.map(([, l]) => csvEsc(l)).join(",") + "\r\n";
+        const body = (text || "") + head + rows.map((r) => toCsv(cols, r)).join("\r\n") + "\r\n";
+        try {
+          const r = await call(`/api/file?op=csv&name=${which}`, { method: "PUT", body, headers: { "content-type": "text/csv", ...(eTag ? { "if-match": eTag } : {}) } });
+          eTag = (await r.json()).eTag; text = body; return true;
+        } catch (e) { if (e.status === 412) { text = null; continue; } ok = false; lastError = e.message; return false; }
+      }
+      return false;
+    }
+    return { name: label, read, append, error: () => lastError };
+  }
+  function ServerDrive(getToken, cfg) {
+    const call = api(getToken); let info = { name: "LIVE INVENTORY.xlsx", webUrl: null, driveType: "personal" };
+    return {
+      log: serverCsv(call, "log", cfg.salesLogName || "StoneFlow sales log.csv", TABLES.log),
+      orders: serverCsv(call, "orders", cfg.ordersFileName || "StoneFlow sales orders.csv", TABLES.orders),
+      describe: () => info,
+      async head() { const d = await (await call("/api/file?op=head")).json(); info = { name: d.name, webUrl: d.webUrl, driveType: d.driveType }; return { eTag: d.eTag }; },
+      async download() { if (!info.webUrl) await this.head(); const r = await call("/api/file?op=download"); return { buf: new Uint8Array(await r.arrayBuffer()), eTag: r.headers.get("x-etag") }; },
+      async upload(bytes, eTag) {
+        const r = await call("/api/file?op=upload", { method: "PUT", body: bytes, headers: { "content-type": "application/octet-stream", ...(eTag ? { "if-match": eTag } : {}) } });
+        return { eTag: (await r.json()).eTag };
+      },
+    };
+  }
+  async function connectServer(cfg, getToken) { const d = ServerDrive(getToken, cfg || {}); await d.head(); return FileStore(d, cfg || {}); }
+
+  // Everyone else: a cleaned-up, read-only stock list from /api/inventory (no racks, no holder names, no orders).
+  function view(getToken) {
+    const call = api(getToken); let eTag = null, sheet = "";
+    const none = { name: "", read: async () => [], append: async () => false, error: () => "" };
+    const ro = async () => { throw err("This view is read-only. Staff sign in to make changes."); };
+    return {
+      readOnly: true, get meta() { return null; },
+      async load(want) {
+        const d = await (await call(`/api/inventory${want || sheet ? "?sheet=" + encodeURIComponent(want || sheet) : ""}`)).json();
+        eTag = d.eTag; sheet = d.meta.sheet; return { meta: d.meta, lots: d.lots };
+      },
+      async changed() { try { return (await (await call("/api/inventory?op=head")).json()).eTag !== eTag; } catch { return false; } },
+      sale: ro, hold: ro, undo: ro, log: none, orders: none,
+    };
+  }
+
   function demo(bytes, name) { const d = MemoryDrive(bytes, name); const s = FileStore(d, {}); s.drive = d; return s; }
 
-  root.InventoryStores = { connect, demo, graph, locate, FileStore, WorkbookStore, MemoryDrive, GraphDrive, planner, orderSheets, TABLES, parseCsv };
+  root.InventoryStores = { connect, connectServer, view, ServerDrive, demo, graph, locate, FileStore, WorkbookStore, MemoryDrive, GraphDrive, planner, orderSheets, TABLES, parseCsv };
 })(typeof window !== "undefined" ? window : globalThis);

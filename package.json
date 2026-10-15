@@ -1,0 +1,8 @@
+{
+  "name": "stoneflow-site",
+  "private": true,
+  "description": "StoneFlow Surfaces website with a live OneDrive inventory and agent",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

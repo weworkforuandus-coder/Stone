@@ -9,8 +9,9 @@
 
   /* ---------- helpers ---------- */
   const stockOf = (l) => l.stock;
-  const holdOf = (l) => heldOf(l);
-  const freeOf = (l) => Math.max(0, l.stock - heldOf(l));
+  const holdOf = (l) => (l.heldTotal != null ? l.heldTotal : heldOf(l));
+  const freeOf = (l) => Math.max(0, l.stock - holdOf(l));
+  const viewOnly = () => S.mode === "view";
   const sizeOf = (l) => (l.L || l.H) ? `${l.L || "?"} x ${l.H || "?"}` : "";
   const lotName = (l) => `${l.lot || "(no lot #)"} ${l.name}`.trim();
   const holdText = (l) => [...Object.entries(l.holds || {}).filter(([, n]) => n).map(([p, n]) => `${n} ${p}`), ...(l.mgrHold ? [`${l.mgrHold} (sales mgr)`] : [])].join(", ");
@@ -36,6 +37,7 @@
     if (sample) { const lim = await sample.limits().catch(() => null); S.sample = lim?.tools ? sample : null; }
     S.downloads = downloads;
 
+    if (CFG.microsoft?.clientId && !window.claude && CFG.serverMode !== false) return openServer();
     if (CFG.microsoft?.clientId && !window.claude) {
       S.mode = "live";
       S.auth = window.MsAuth.create({ clientId: CFG.microsoft.clientId, tenant: CFG.microsoft.tenant });
@@ -56,15 +58,36 @@
     }
     showGate("demo-pick");
   }
+  // Server mode: anyone can see the stock (read-only). Staff on the editor list sign in to make changes.
+  async function openServer() {
+    S.auth = window.MsAuth.create({ clientId: CFG.microsoft.clientId, tenant: CFG.microsoft.tenant });
+    const getToken = () => (S.auth.signedIn() ? S.auth.getToken() : Promise.resolve(null));
+    busy(true, "Reading the inventory…");
+    let me = { role: "viewer", connected: true };
+    try { me = await (await fetch("/api/me", { headers: S.auth.signedIn() ? { authorization: "Bearer " + await S.auth.getToken() } : {} })).json(); } catch {}
+    S.me = me; S.who = me.name || me.email || ""; S.email = String(me.email || "").toLowerCase();
+    if (!me.connected) { busy(false); return showGate("connect"); }
+    try {
+      if (me.role === "editor") { S.mode = "live"; S.store = await window.InventoryStores.connectServer(CFG.excel || {}, getToken); }
+      else { S.mode = "view"; S.store = window.InventoryStores.view(getToken); }
+    } catch (e) { busy(false); return showGate("error", e.message); }
+    busy(false);
+    return start();
+  }
   function startDemo(bytes, name) { S.mode = "demo"; S.store = window.InventoryStores.demo(bytes, name); S.who = "Demo user"; start(); }
 
   async function start() {
     $("gate").hidden = true; $("desk-wrap").hidden = false; $("pActions").hidden = false;
-    $("signOut").hidden = S.mode !== "live"; $("demoDownload").hidden = S.mode !== "demo";
-    $("whoami").textContent = S.who;
+    const signedIn = !!S.auth?.signedIn?.();
+    $("signOut").hidden = !signedIn; $("demoDownload").hidden = S.mode !== "demo";
+    $("signIn").hidden = !(S.auth && !signedIn);
+    $("whoami").textContent = S.who + (S.mode === "view" && signedIn ? " · view only" : "");
+    document.body.classList.toggle("view-only", viewOnly());
+    $("stSyncL").textContent = viewOnly() ? "Last updated" : "Read from Excel";
+    $("invFoot").textContent = viewOnly() ? "Stock is read live from the yard's inventory. To buy or reserve slabs, contact us or talk to your salesperson." : "Tap a lot to record a sale or change holds. Every change is written straight into the Excel file.";
     await load();
-    S.store.log.read().then((l) => { S.log = l || []; renderLog(); }).catch(() => {});
-    S.store.orders.read().then((o) => { S.orderRows = o || []; renderOrders(); }).catch(() => {});
+    if (!viewOnly()) S.store.log.read().then((l) => { S.log = l || []; renderLog(); }).catch(() => {});
+    if (!viewOnly()) S.store.orders.read().then((o) => { S.orderRows = o || []; renderOrders(); }).catch(() => {});
     setInterval(async () => {
       if (document.visibilityState !== "visible" || S.busy || S.writing || !S.store) return;
       if (await S.store.changed()) load(undefined, true);
@@ -78,6 +101,12 @@
       g.innerHTML = `<h2>Sign in to the inventory</h2><p>Use the Microsoft account that can open the LIVE_INVENTORY Excel file on OneDrive. Your sales and holds are written straight into that file.</p>
         ${msg ? `<p style="color:var(--sold)">${esc(msg)}</p>` : ""}<div><button class="btn primary" type="button" id="msSignIn">Sign in with Microsoft</button></div>`;
       $("msSignIn").onclick = () => S.auth.signIn();
+    } else if (kind === "connect") {
+      g.innerHTML = `<h2>Inventory not connected yet</h2><p>The owner needs to connect the site to the OneDrive that holds the Excel file. This is done once.</p>
+        <div><a class="btn primary" href="/api/connect">Owner: connect OneDrive</a></div>`;
+    } else if (kind === "error" && S.me) {
+      g.innerHTML = `<h2>Couldn't read the inventory</h2><p>${esc(msg)}</p><div><button class="btn" type="button" id="gRetry">Try again</button></div>`;
+      $("gRetry").onclick = () => location.reload();
     } else if (kind === "error") {
       g.innerHTML = `<h2>Couldn't open the Excel file</h2><p>${esc(msg)}</p><p>Check that the sharing link in <code>js/config.js</code> is a "Can edit" link and that you are signed in with an account it was shared with.</p>
         <div><button class="btn" type="button" id="gRetry">Try again</button> <button class="btn" type="button" id="gOut">Sign in as someone else</button></div>`;
@@ -100,7 +129,8 @@
       if (S.sel && !S.lots.some((l) => l.id === S.sel)) S.sel = null;
       renderAll();
     } catch (e) {
-      if (e.code === "auth") return showGate("signin", e.message);
+      if (e.code === "auth") return S.me ? (S.auth.signOut(), location.reload()) : showGate("signin", e.message);
+      if (e.code === "not_connected") return showGate("connect");
       flash(e.message);
     } finally { if (!quiet) busy(false); }
   }
@@ -120,10 +150,10 @@
   }
   function renderHead() {
     const m = S.meta;
-    $("pSource").textContent = S.mode === "demo" ? "Demo · Excel copy in this browser" : "Live inventory · OneDrive Excel";
+    $("pSource").textContent = S.mode === "demo" ? "Demo · Excel copy in this browser" : viewOnly() ? "Live stock · updated from the yard" : "Live inventory · OneDrive Excel · you can make changes";
     $("sheetSel").innerHTML = (m.sheets || [m.sheet]).map((n) => `<option ${n === m.sheet ? "selected" : ""}>${esc(n)}</option>`).join("");
     $("sheetSel").hidden = (m.sheets || []).length < 2;
-    const oe = $("openExcel"); oe.hidden = !m.webUrl; if (m.webUrl) oe.href = m.webUrl;
+    const oe = $("openExcel"); oe.hidden = !m.webUrl || viewOnly(); if (m.webUrl) oe.href = m.webUrl;
     const sel = $("secSel"), cur = S.sec;
     sel.innerHTML = `<option value="">All sections</option>` + (m.sections || []).map((s) => `<option ${s === cur ? "selected" : ""}>${esc(s)}</option>`).join("");
   }
@@ -139,15 +169,16 @@
     const rows = S.lots.filter((l) => (S.filter === "all" || (S.filter === "in" ? l.stock > 0 : l.stock <= 0)) && (!S.sec || l.section === S.sec) && matches(l, ts));
     $("invCount").textContent = `${rows.length} of ${S.lots.length} lots`;
     if (!rows.length) { box.innerHTML = `<div class="empty">No lots match.</div>`; return; }
-    let h = `<table><thead><tr><th>Lot #</th><th>Color</th><th>Size</th><th class="n">Stock</th><th class="n">Hold</th><th class="n">Free</th><th>Rack</th></tr></thead><tbody>`, sec = null;
+    const rack = !viewOnly(), ncol = rack ? 7 : 6;
+    let h = `<table><thead><tr><th>Lot #</th><th>Color</th><th>Size</th><th class="n">Stock</th><th class="n">Hold</th><th class="n">Free</th>${rack ? "<th>Rack</th>" : ""}</tr></thead><tbody>`, sec = null;
     for (const l of rows) {
-      if (l.section !== sec) { sec = l.section; h += `<tr class="sec"><td colspan="7">${esc(sec || "—")}</td></tr>`; }
+      if (l.section !== sec) { sec = l.section; h += `<tr class="sec"><td colspan="${ncol}">${esc(sec || "—")}</td></tr>`; }
       const hd = holdOf(l), fr = freeOf(l);
       h += `<tr class="lotrow ${l.stock <= 0 ? "out" : ""} ${S.sel === l.id ? "sel" : ""}" data-id="${esc(l.id)}" tabindex="0">
         <td class="code">${esc(l.lot || "—")}</td><td class="color">${esc(l.name)} ${l.bm ? '<span class="pill bm">BM</span>' : ""}</td>
         <td>${esc(sizeOf(l))}</td><td class="n">${l.stock < 0 ? `<b class="neg">${l.stock}</b>` : l.stock}</td>
         <td class="n">${hd ? `<span class="pill hold">${hd}</span>` : ""}</td><td class="n">${fr ? `<b class="free">${fr}</b>` : `<b class="zero">0</b>`}</td>
-        <td class="loc" title="${esc(l.loc)}">${esc(l.loc)}</td></tr>`;
+        ${rack ? `<td class="loc" title="${esc(l.loc)}">${esc(l.loc)}</td>` : ""}</tr>`;
     }
     box.innerHTML = h + "</tbody></table>";
   }
@@ -157,6 +188,14 @@
     const drafts = box.dataset.lot === l.id ? [...box.querySelectorAll("input")].filter((i) => i.dataset.dirty === "1").map((i) => [i.id, i.value]) : [];
     box.dataset.lot = l.id; box.hidden = false;
     const people = S.meta.holdPeople || [], hd = holdOf(l), fr = freeOf(l);
+    if (viewOnly()) {
+      box.innerHTML = `<div class="lotcard"><div class="topline"><h3>${esc(lotName(l))}</h3><button class="link" type="button" id="cardClose">Close</button></div>
+        <div class="meta">${esc([l.section, sizeOf(l) && sizeOf(l) + " in", l.bm && "bookmatched"].filter(Boolean).join(" · "))}</div>
+        <div class="nums"><div><b>${l.stock}</b><span>In stock</span></div><div><b>${hd}</b><span>On hold</span></div><div><b style="color:var(--ok)">${fr}</b><span>Free to sell</span></div></div>
+        <div class="meta">To buy or reserve these slabs, contact us or talk to your salesperson.</div></div>`;
+      $("cardClose").onclick = () => { S.sel = null; renderCard(); renderTable(); };
+      return;
+    }
     const recent = S.log.filter((e) => e.lot === l.lot && e.color === l.name).slice(-5).reverse();
     box.innerHTML = `<div class="lotcard">
       <div class="topline"><h3>${esc(lotName(l))}</h3><button class="link" type="button" id="cardClose">Close</button></div>
@@ -374,7 +413,7 @@
   /* ---------- agent ---------- */
   function lotView(l) {
     return { id: l.id, lot: l.lot || "(none)", color: l.name, section: l.section, size_in: sizeOf(l) || "not listed", bookmatched: !!l.bm,
-      racks: l.loc || "", in_stock: l.stock, on_hold: holdOf(l), hold_detail: holdText(l) || undefined, free_to_sell: freeOf(l),
+      ...(viewOnly() ? {} : { racks: l.loc || "", hold_detail: holdText(l) || undefined }), in_stock: l.stock, on_hold: holdOf(l), free_to_sell: freeOf(l),
       ...(l.outside ? { outside_warehouse: true } : {}), ...(l.stock < 0 ? { data_problem: "negative stock in sheet" } : {}) };
   }
   function rules() {
@@ -469,13 +508,14 @@ Reply briefly for staff on a phone: short lines, "•" for list items, **bold** 
       const r = await S.sample([{ role: "user", content: rules() }, ...turns], { modelTier: "quick", tools, signal, onText: ({ text }) => onText(text) });
       return r.text;
     }
-    if (S.mode !== "live") throw new Error("The agent needs the site to be connected to Microsoft (see README), or open the preview in Claude.");
+    if (S.mode !== "live" && S.mode !== "view") throw new Error("The agent needs the site to be connected to Microsoft (see README), or open the preview in Claude.");
+    const tools = viewOnly() ? TOOL_DEFS.filter((t) => t.name === "find_lots") : TOOL_DEFS;
     const messages = turns.map((t) => ({ role: t.role, content: t.content }));
     let last = "";
     for (let round = 0; round < 6; round++) {
-      const token = await S.auth.getToken();
+      const token = S.auth?.signedIn?.() ? await S.auth.getToken() : null;
       const r = await fetch(CFG.agentUrl || "/api/agent", { method: "POST", signal,
-        headers: { "content-type": "application/json", authorization: "Bearer " + token }, body: JSON.stringify({ system: rules(), messages, tools: TOOL_DEFS }) });
+        headers: { "content-type": "application/json", ...(token ? { authorization: "Bearer " + token } : {}) }, body: JSON.stringify({ system: viewOnly() ? "" : rules(), messages, tools }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || `Agent error ${r.status}`);
       const said = (d.content || []).filter((b) => b.type === "text").map((b) => b.text).join("").trim();
@@ -485,7 +525,7 @@ Reply briefly for staff on a phone: short lines, "•" for list items, **bold** 
       messages.push({ role: "assistant", content: d.content });
       const results = [];
       for (const u of uses) {
-        try { results.push({ type: "tool_result", tool_use_id: u.id, content: JSON.stringify(await EXEC[u.name](u.input || {})) }); }
+        try { if (viewOnly() && u.name !== "find_lots") throw new Error("read-only"); results.push({ type: "tool_result", tool_use_id: u.id, content: JSON.stringify(await EXEC[u.name](u.input || {})) }); }
         catch (e) { results.push({ type: "tool_result", tool_use_id: u.id, content: "Error: " + e.message, is_error: true }); }
       }
       messages.push({ role: "user", content: results });
@@ -500,8 +540,9 @@ Reply briefly for staff on a phone: short lines, "•" for list items, **bold** 
       const top = S.lots.filter((l) => l.lot && !l.outside && freeOf(l) > 5).sort((a, b) => freeOf(b) - freeOf(a));
       const a = top[0], b = top.find((l) => l.name !== a?.name) || top[1], person = (S.meta?.holdPeople || [])[4] || (S.meta?.holdPeople || [])[0] || "Puru";
       const ask = a ? [`Is ${a.lot} available?`, `Do we have ${b ? b.name.replace(/[-(].*$/, "").trim().toLowerCase() : "calacatta"} in jumbo size?`, `Sold 2 slabs of ${a.lot}`, `Hold 3 ${b?.lot || a.lot} for ${person}`, `Create a sales order for ABC Granite: 2 slabs of ${a.lot} at $450 each`] : [];
-      const can = S.sample || S.mode === "live";
-      box.innerHTML = `<div class="starters"><p>${can ? "Ask about stock, tell me what sold, or put slabs on hold. I write every change into the Excel file." : "The agent needs the site connected to Microsoft, or open this preview in Claude. You can still record sales and holds in the lot list."}</p>
+      const can = S.sample || S.mode === "live" || viewOnly();
+      if (viewOnly()) ask.splice(2);
+      box.innerHTML = `<div class="starters"><p>${viewOnly() ? "Ask what's in stock, in English or Spanish. For example, a lot number, a color or a size." : can ? "Ask about stock, tell me what sold, or put slabs on hold. I write every change into the Excel file." : "The agent needs the site connected to Microsoft, or open this preview in Claude. You can still record sales and holds in the lot list."}</p>
         ${can ? ask.map((x) => `<button class="chip" type="button" data-ask="${esc(x)}">${esc(x)}</button>`).join("") : ""}</div>`;
       return;
     }
@@ -598,7 +639,8 @@ Reply briefly for staff on a phone: short lines, "•" for list items, **bold** 
   $("tabAgent").onclick = () => setTab("agent"); $("tabInv").onclick = () => setTab("inventory");
   $("refreshBtn").onclick = () => load();
   $("sheetSel").onchange = (e) => load(e.target.value);
-  $("signOut").onclick = () => { S.auth?.signOut(); location.hash = "#home"; location.reload(); };
+  $("signOut").onclick = () => { S.auth?.signOut(); location.reload(); };
+  $("signIn").onclick = () => S.auth?.signIn();
   $("demoDownload").onclick = async () => {
     const bytes = S.store?.drive?.bytes?.(); if (!bytes) return;
     const name = `LIVE_INVENTORY-demo-${new Date().toISOString().slice(0, 10)}.xlsx`;

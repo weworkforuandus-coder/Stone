@@ -246,3 +246,6 @@ td b.free { color: var(--ok); } td b.zero { color: var(--muted); font-weight: 40
   .nav a.hide-sm { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* read-only visitors */
+body.view-only .staff-only { display: none !important; }

@@ -31,7 +31,7 @@
         <span class="eyebrow">Quartz · Granite · Calacatta · Onyx</span>
         <h1>Slabs in the yard, <em>ready to cut.</em></h1>
         <p>Jumbo and regular quartz, granite and onyx for countertop fabricators. Pick your lot, we hold it, you pick it up.</p>
-        <div class="ctas"><a class="btn primary" href="#collections">See what's in stock</a><a class="btn" href="#visit">Book a yard visit</a></div>
+        <div class="ctas"><a class="btn primary" href="#staff">See what's in stock</a><a class="btn" href="#visit">Book a yard visit</a></div>
       </div>
       <div class="slab" aria-hidden="true"><canvas id="heroSlab" width="1016" height="512"></canvas><span class="tag">Calacatta · 127 × 64 in · Bookmatched</span></div>
     </section>
@@ -93,6 +93,7 @@
         <button class="btn" type="button" id="demoDownload" hidden>Download changed file</button>
         <span class="eyebrow" id="whoami"></span>
         <button class="btn" type="button" id="signOut" hidden>Sign out</button>
+        <button class="btn" type="button" id="signIn" hidden>Staff sign in</button>
       </div>
     </div>
 
@@ -105,7 +106,7 @@
         <div class="stat"><span class="v" id="stHold">–</span><span class="l">Slabs on hold</span></div>
         <div class="stat"><span class="v" id="stStock">–</span><span class="l">Slabs in stock</span></div>
         <div class="stat"><span class="v" id="stLots">–</span><span class="l">Lots in stock</span></div>
-        <div class="stat"><span class="v small" id="stSync">–</span><span class="l">Read from Excel</span></div>
+        <div class="stat"><span class="v small" id="stSync">–</span><span class="l" id="stSyncL">Read from Excel</span></div>
       </section>
       <div class="tabs" role="tablist" style="margin-top:16px">
         <button type="button" role="tab" id="tabAgent" aria-selected="true">Agent</button>
@@ -127,7 +128,7 @@
           <section class="panel" aria-label="Lots">
             <div class="panel-h"><h2>Lots</h2><span class="eyebrow" id="invCount"></span></div>
             <div class="inv-tools">
-              <input id="search" type="search" placeholder="Lot #, color, size, rack…" aria-label="Search lots">
+              <input id="search" type="search" placeholder="Lot #, color or size…" aria-label="Search lots">
               <select id="secSel" aria-label="Section"><option value="">All sections</option></select>
               <div class="seg" role="group" aria-label="Stock filter">
                 <button type="button" data-f="in" aria-pressed="true">In stock</button>
@@ -137,13 +138,13 @@
             </div>
             <div id="lotCard" hidden></div>
             <div class="tablebox" id="tablebox"></div>
-            <div class="foot">Tap a lot to record a sale or change holds. Every change is written straight into the Excel file.</div>
+            <div class="foot" id="invFoot">Tap a lot to record a sale or change holds. Every change is written straight into the Excel file.</div>
           </section>
-          <section class="panel" aria-label="Sales orders">
+          <section class="panel staff-only" aria-label="Sales orders">
             <div class="panel-h"><h2>Sales orders</h2><span class="eyebrow" id="ordersWhere"></span></div>
             <div class="log" id="orders"></div>
           </section>
-          <section class="panel" aria-label="Recent changes">
+          <section class="panel staff-only" aria-label="Recent changes">
             <div class="panel-h"><h2>Recent changes</h2><span class="eyebrow" id="logWhere"></span></div>
             <div class="log" id="log"></div>
           </section>
