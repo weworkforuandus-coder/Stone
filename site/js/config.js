@@ -1,26 +1,25 @@
-// Site settings. Fill these in after the Azure and Netlify steps in README.md.
+// Site settings.
 window.STONEFLOW_CONFIG = {
   company: "StoneFlow Surfaces",
   // Printed on sales orders.
-  companyDetails: { address: "", phone: "(999) 999-9999", email: "weworkforuandus@gmail.com" },
+  companyDetails: { address: "YOUR ADDRESS, City, State ZIP", phone: "(999) 999-9999", email: "weworkforuandus@gmail.com" },
   currency: "USD",
+  // Only these sign-ins see the "things to check in the sheet" notes.
+  adminEmails: ["weworkforuandus@gmail.com"],
 
-  // Azure app registration (README step 2). Leave clientId empty to run the portal in demo mode.
   microsoft: {
-    clientId: "68948113-4da7-4aac-86f1-eb2ae369e9aa",                 // "Application (client) ID" from Azure
-    tenant: "consumers",             // "common" = work and personal Microsoft accounts
+    clientId: "68948113-4da7-4aac-86f1-eb2ae369e9aa",
+    tenant: "consumers",
   },
 
-  // Where LIVE_INVENTORY.xlsx lives (README step 3). Use ONE of these:
   excel: {
-    shareUrl: "",                 // a OneDrive "Can edit" sharing link to the file (works for everyone you share with)
-    filePath: "/Stone/LIVE INVENTORY.xlsx",                 // or a path in YOUR OneDrive, e.g. "/Documents/LIVE_INVENTORY.xlsx" (only you)
-    sheet: "AUG 2026",                    // optional; empty = newest month sheet (e.g. "AUG 2026")
-    mode: "auto",                 // auto | file | workbook (auto: Excel API on Business/SharePoint, file mode on personal OneDrive)
-    salesLogName: "StoneFlow sales log.csv",       // written next to the Excel file; who sold what, with notes
-    ordersFileName: "StoneFlow sales orders.csv",  // sales orders created by the agent (one line per lot)
+    shareUrl: "",
+    filePath: "/Stone/LIVE INVENTORY.xlsx",
+    sheet: "AUG 2026",
+    mode: "auto",
+    salesLogName: "StoneFlow sales log.csv",
+    ordersFileName: "StoneFlow sales orders.csv",
   },
 
-  // The agent's server function (netlify/functions/agent.mjs). Keeps the Claude API key off the browser.
   agentUrl: "/api/agent",
 };

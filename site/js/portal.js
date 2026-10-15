@@ -346,10 +346,17 @@
     const canPrint = !window.claude;
     m.hidden = false;
     m.innerHTML = `<div class="modal-box" role="dialog" aria-modal="true" aria-label="Sales order ${esc(o.order)}">${orderHtml(o)}
-      <div class="modal-actions">${canPrint ? '<button class="btn primary" type="button" id="soPrint">Print</button>' : ""}<button class="btn" type="button" id="soDl">Download</button>
+      <div class="modal-actions">${canPrint ? '<button class="btn primary" type="button" id="soPdf">Save as PDF</button><button class="btn" type="button" id="soPrint">Print</button>' : ""}<button class="btn" type="button" id="soDl">Download</button>
       ${o.status !== "Cancelled" ? '<button class="btn" type="button" id="soCancel">Cancel order</button>' : ""}<button class="btn" type="button" id="soClose">Close</button><span class="eyebrow" id="soMsg"></span></div></div>`;
     $("soClose").onclick = () => { m.hidden = true; };
     if ($("soPrint")) $("soPrint").onclick = () => window.print();
+    // PDF: the browser's print dialog with "Save as PDF"; the page title becomes the file name (e.g. "SO-261015-01 ABC Granite.pdf").
+    if ($("soPdf")) $("soPdf").onclick = () => {
+      const old = document.title; document.title = `${o.order} ${o.client}`.replace(/[\\/:*?"<>|]/g, "");
+      $("soMsg").textContent = "Choose \"Save as PDF\" as the printer";
+      const back = () => { document.title = old; window.removeEventListener("afterprint", back); };
+      window.addEventListener("afterprint", back); window.print(); setTimeout(back, 60000);
+    };
     $("soDl").onclick = async () => {
       const css = [...document.styleSheets].map((ss) => { try { return [...ss.cssRules].map((r) => r.cssText).join("\n"); } catch { return ""; } }).join("\n");
       const html = `<!doctype html><meta charset="utf-8"><title>${esc(o.order)}</title><style>${css}</style><body style="padding:24px">${orderHtml(o)}</body>`;
